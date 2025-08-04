@@ -95,8 +95,14 @@ app.use((req, res, next) => {
       log(`Failed to load Vite in development mode: ${error}`);
     }
   } else {
-    // In production, this is just an API server - no static file serving needed
-    log("Running in production mode - API only");
+    // In production, serve static files
+    try {
+      const viteModule = await import("./vite");
+      viteModule.serveStatic(app);
+      log("Serving static files in production mode");
+    } catch (error) {
+      log(`Failed to set up static file serving: ${error}`);
+    }
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
