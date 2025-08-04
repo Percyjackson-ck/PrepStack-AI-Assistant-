@@ -88,8 +88,12 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (process.env.NODE_ENV === "development") {
-    const { setupVite } = await import("./vite");
-    await setupVite(app, server);
+    try {
+      const viteModule = await import("./vite");
+      await viteModule.setupVite(app, server);
+    } catch (error) {
+      log(`Failed to load Vite in development mode: ${error}`);
+    }
   } else {
     // In production, this is just an API server - no static file serving needed
     log("Running in production mode - API only");
