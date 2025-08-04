@@ -1,7 +1,7 @@
 {
   "version": 2,
   "buildCommand": "npm run build:frontend",
-  "outputDirectory": "dist/vercel-frontend",
+  "outputDirectory": "./dist/vercel-frontend",
   "routes": [
     {
       "src": "/(.*)",
