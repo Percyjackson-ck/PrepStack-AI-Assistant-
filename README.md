@@ -111,12 +111,36 @@ Visit `http://localhost:5000` to see your application!
 npm run build
 ```
 
-### Azure Deployment
-This project is optimized for Azure App Service deployment:
+### Deployment Options
+
+#### 🚀 Vercel (Frontend) + Render (Backend) - Recommended
+- **Vercel**: Deploy React frontend with global CDN
+- **Render**: Deploy Express backend with persistent connections
+- See `VERCEL_DEPLOYMENT.md` and `RENDER_DEPLOYMENT.md` for detailed guides
+
+#### 🔧 Render (Full-Stack)
+- Deploy entire application on Render
+- Integrated database and file storage
+- See `RENDER_DEPLOYMENT.md` for configuration
+
+#### ☁️ Azure App Service
+- Enterprise-grade deployment
 - Pre-configured `web.config` for IIS
-- Optimized build output in `dist/` folder
-- Environment-based configuration
 - See `AZURE_DEPLOYMENT.md` for detailed instructions
+
+### Quick Deploy Commands
+
+**Vercel (Frontend only):**
+```bash
+npm run build:frontend
+cd client && vercel --prod
+```
+
+**Render (Full-stack):**
+```bash
+# Push to GitHub, then connect repository in Render dashboard
+git push origin main
+```
 
 ## 🏗️ Project Structure
 

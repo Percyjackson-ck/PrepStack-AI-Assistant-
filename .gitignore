@@ -10,3 +10,7 @@ vite.config.ts.*
 .env.development
 uploads/
 RAGStackGen-Azure-Deployment.zip
+
+# Deployment artifacts
+.vercel
+.render

@@ -1,0 +1,56 @@
+services:
+  - type: web
+    name: ragstackgen-backend
+    env: node
+    plan: starter
+    region: oregon
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://ragstackgen.vercel.app
+    scaling:
+      minInstances: 1
+      maxInstances: 3
+    
+  # Optional: Full-stack deployment (frontend + backend)
+  - type: web
+    name: ragstackgen-fullstack
+    env: node
+    plan: starter
+    region: oregon
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://ragstackgen-fullstack.onrender.com
+
+# Optional: Managed PostgreSQL database
+databases:
+  - name: ragstackgen-db
+    databaseName: ragstack
+    user: ragstack_user
+    plan: starter
+    region: oregon
