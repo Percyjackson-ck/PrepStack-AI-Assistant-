@@ -60,7 +60,7 @@ The application uses PostgreSQL with the following core entities:
 - **Replit**: Development and deployment platform with integrated tooling
 
 ### AI & Language Models
-- **Grok (X.ai)**: Primary LLM for generating contextual responses in RAG pipeline
+- **Groq**: Primary LLM for generating contextual responses in RAG pipeline using llama3-8b-8192 model
 - **Vector Embeddings**: Text-to-vector conversion for semantic search (implementation pending)
 
 ### Third-Party APIs

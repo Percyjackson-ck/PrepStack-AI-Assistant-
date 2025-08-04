@@ -5,24 +5,40 @@ import { insertUserSchema, insertNoteSchema, insertPlacementQuestionSchema, inse
 import { FileProcessor } from "./services/fileProcessor";
 import { RAGService } from "./services/ragService";
 import { GitHubService } from "./services/githubService";
-import { GrokService } from "./services/grokService";
+import { GroqService } from "./services/groqService";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 
+// JWT payload interface
+interface JWTPayload {
+  userId: string;
+  email: string;
+}
+
 // Extend Express Request interface to include user
 declare global {
   namespace Express {
     interface Request {
-      user?: User;
+      user?: JWTPayload;
     }
   }
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 const upload = multer({ dest: 'uploads/' });
+
+// Helper function to get authenticated user ID
+const getUserId = (req: Request, res: Response): string | null => {
+  const userId = req.user?.userId;
+  if (!userId) {
+    res.status(401).json({ message: "Unauthorized" });
+    return null;
+  }
+  return userId;
+};
 
 // Auth middleware
 const authenticateToken = (req: Request, res: Response, next: Function) => {
@@ -100,7 +116,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { subject } = req.body;
-      const userId = req.user.userId;
+      const userId = req.user?.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
 
       const processedFile = await FileProcessor.processFile(req.file.path, req.file.originalname);
       const embedding = await FileProcessor.createEmbedding(processedFile.content);
@@ -128,7 +148,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/notes", authenticateToken, async (req, res) => {
     try {
-      const userId = req.user.userId;
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      
       const { subject } = req.query;
 
       const notes = subject 
@@ -143,7 +165,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/notes/search", authenticateToken, async (req, res) => {
     try {
-      const userId = req.user.userId;
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      
       const { q } = req.query;
 
       if (!q) {
@@ -161,7 +185,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/github/connect", authenticateToken, async (req, res) => {
     try {
       const { token } = req.body;
-      const userId = req.user.userId;
+      const userId = getUserId(req, res);
+      if (!userId) return;
 
       // Update user with GitHub token
       await storage.updateUser(userId, { githubToken: token });
@@ -178,7 +203,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/github/repos", authenticateToken, async (req, res) => {
     try {
-      const userId = req.user.userId;
+      const userId = getUserId(req, res);
+      if (!userId) return;
       const repos = await storage.getGithubReposByUser(userId);
       res.json(repos);
     } catch (error) {
@@ -189,7 +215,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/github/analyze/:repoId", authenticateToken, async (req, res) => {
     try {
       const { repoId } = req.params;
-      const userId = req.user.userId;
+      const userId = getUserId(req, res);
+      if (!userId) return;
 
       const user = await storage.getUser(userId);
       if (!user?.githubToken) {
@@ -215,7 +242,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Placement questions routes
   app.post("/api/placement/questions", authenticateToken, async (req, res) => {
     try {
-      const userId = req.user.userId;
+      const userId = getUserId(req, res);
+      if (!userId) return;
       const questionData = insertPlacementQuestionSchema.parse({ ...req.body, userId });
 
       const question = await storage.createPlacementQuestion(questionData);
@@ -230,7 +258,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/placement/questions", authenticateToken, async (req, res) => {
     try {
-      const userId = req.user.userId;
+      const userId = getUserId(req, res);
+      if (!userId) return;
       const { company, year, difficulty, topic } = req.query;
 
       const filters: any = {};
@@ -249,7 +278,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Chat routes
   app.post("/api/chat/sessions", authenticateToken, async (req, res) => {
     try {
-      const userId = req.user.userId;
+      const userId = getUserId(req, res);
+      if (!userId) return;
       const { title, messages } = req.body;
 
       const session = await storage.createChatSession({
@@ -266,7 +296,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/chat/sessions", authenticateToken, async (req, res) => {
     try {
-      const userId = req.user.userId;
+      const userId = getUserId(req, res);
+      if (!userId) return;
       const sessions = await storage.getChatSessionsByUser(userId);
       res.json(sessions);
     } catch (error) {
@@ -278,7 +309,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { sessionId } = req.params;
       const { message } = req.body;
-      const userId = req.user.userId;
+      const userId = getUserId(req, res);
+      if (!userId) return;
 
       const sessions = await storage.getChatSessionsByUser(userId);
       const session = sessions.find(s => s.id === sessionId);
@@ -307,7 +339,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // RAG search endpoint
   app.post("/api/search", authenticateToken, async (req, res) => {
     try {
-      const userId = req.user.userId;
+      const userId = getUserId(req, res);
+      if (!userId) return;
       const { query } = req.body;
 
       if (!query) {
@@ -324,7 +357,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard stats
   app.get("/api/dashboard/stats", authenticateToken, async (req, res) => {
     try {
-      const userId = req.user.userId;
+      const userId = getUserId(req, res);
+      if (!userId) return;
 
       const [notes, repos, questions, sessions] = await Promise.all([
         storage.getNotesByUser(userId),

@@ -1,12 +1,12 @@
 import OpenAI from "openai";
 
-export class GrokService {
+export class GroqService {
   private client: OpenAI;
 
   constructor() {
     this.client = new OpenAI({
-      baseURL: "https://api.x.ai/v1",
-      apiKey: process.env.XAI_API_KEY || process.env.GROK_API_KEY || "default_key"
+      baseURL: "https://api.groq.com/openai/v1",
+      apiKey: process.env.GROQ_API_KEY || "default_key"
     });
   }
 
@@ -29,7 +29,7 @@ ${context}
 Please provide a comprehensive answer based on the context provided.`;
 
       const response = await this.client.chat.completions.create({
-        model: "grok-2-1212",
+        model: "llama3-8b-8192",
         messages: [
           { role: "system" as const, content: systemPrompt },
           { role: "user" as const, content: userPrompt }
@@ -57,7 +57,7 @@ Please provide a comprehensive answer based on the context provided.`;
       };
 
       const response = await this.client.chat.completions.create({
-        model: "grok-2-1212",
+        model: "llama3-8b-8192",
         messages: [systemMessage, ...messages],
         max_tokens: 800,
         temperature: 0.7
@@ -73,7 +73,7 @@ Please provide a comprehensive answer based on the context provided.`;
   async analyzeCode(code: string, language: string): Promise<string> {
     try {
       const response = await this.client.chat.completions.create({
-        model: "grok-2-1212",
+        model: "llama3-8b-8192",
         messages: [
           {
             role: "system" as const,

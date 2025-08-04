@@ -1,6 +1,6 @@
 import { storage } from '../storage';
 import { FileProcessor } from './fileProcessor';
-import { GrokService } from './grokService';
+import { GroqService } from './groqService';
 import type { Note, PlacementQuestion } from '@shared/schema';
 
 export interface RAGResponse {
@@ -14,7 +14,7 @@ export interface RAGResponse {
 }
 
 export class RAGService {
-  private static grokService = new GrokService();
+  private static groqService = new GroqService();
 
   static async searchAndAnswer(userId: string, query: string): Promise<RAGResponse> {
     try {
@@ -50,7 +50,7 @@ export class RAGService {
         `[${source.type.toUpperCase()}] ${source.title}:\n${source.content}`
       ).join('\n\n');
 
-      const answer = await this.grokService.generateAnswer(query, context);
+      const answer = await this.groqService.generateAnswer(query, context);
 
       return {
         answer,
