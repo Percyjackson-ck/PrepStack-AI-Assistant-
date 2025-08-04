@@ -41,6 +41,15 @@ VITE_API_URL=https://ragstackgen.onrender.com
 - If the frontend shows a blank page, check that VITE_API_URL is set in Vercel
 - Check the Render logs for any runtime errors
 - Make sure the database connection string is working
+- **Build Issues**: If Render build fails, check that all dependencies are properly externalized
+- **Runtime Issues**: Ensure all environment variables are set in the Render dashboard
+- **Frontend Loading Issues**: Verify VITE_API_URL points to your Render service URL
+
+## Latest Deployment Status
+- ✅ **Build Configuration**: Server packages are properly externalized for Render
+- ✅ **Package Dependencies**: All necessary packages included in Render package.json
+- ✅ **CORS Configuration**: Backend configured to accept requests from Vercel
+- ✅ **Environment Variables**: Template ready for manual configuration
 
 ## Manual Setup Steps
 
