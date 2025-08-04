@@ -27,10 +27,12 @@ export interface IStorage {
 
   // Notes operations
   createNote(note: InsertNote): Promise<Note>;
+  getNoteById(id: string): Promise<Note | undefined>;
   getNotesByUser(userId: string): Promise<Note[]>;
   getNotesBySubject(userId: string, subject: string): Promise<Note[]>;
   searchNotes(userId: string, query: string): Promise<Note[]>;
   updateNoteEmbedding(id: string, embedding: string): Promise<void>;
+  deleteNote(id: string): Promise<void>;
 
   // GitHub operations
   createGithubRepo(repo: InsertGithubRepo): Promise<GithubRepo>;
@@ -47,6 +49,7 @@ export interface IStorage {
   createChatSession(session: InsertChatSession): Promise<ChatSession>;
   getChatSessionsByUser(userId: string): Promise<ChatSession[]>;
   updateChatSession(id: string, messages: any[]): Promise<ChatSession | undefined>;
+  deleteChatSessionsByUser(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -99,6 +102,15 @@ export class DatabaseStorage implements IStorage {
 
   async updateNoteEmbedding(id: string, embedding: string): Promise<void> {
     await db.update(notes).set({ embedding }).where(eq(notes.id, id));
+  }
+
+  async getNoteById(id: string): Promise<Note | undefined> {
+    const [note] = await db.select().from(notes).where(eq(notes.id, id));
+    return note;
+  }
+
+  async deleteNote(id: string): Promise<void> {
+    await db.delete(notes).where(eq(notes.id, id));
   }
 
   async createGithubRepo(insertRepo: InsertGithubRepo): Promise<GithubRepo> {
@@ -163,6 +175,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(chatSessions.id, id))
       .returning();
     return session || undefined;
+  }
+
+  async deleteChatSessionsByUser(userId: string): Promise<void> {
+    await db.delete(chatSessions).where(eq(chatSessions.userId, userId));
   }
 }
 

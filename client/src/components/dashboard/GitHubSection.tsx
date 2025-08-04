@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,33 +9,72 @@ import { apiRequest } from '@/lib/api';
 import { Github, Lock, Star, RefreshCw, Check, Code, Zap } from 'lucide-react';
 
 export function GitHubSection() {
-  const [githubToken, setGithubToken] = useState('');
-  const [showTokenInput, setShowTokenInput] = useState(false);
+  const [githubInput, setGithubInput] = useState('');
+  const [inputType, setInputType] = useState<'username' | 'token'>('username');
+  const [showInput, setShowInput] = useState(false);
+  const [hasConnected, setHasConnected] = useState(false);
+  const [connectedUsername, setConnectedUsername] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // Load GitHub connection state from localStorage on mount
+  useEffect(() => {
+    const savedUsername = localStorage.getItem('github_username');
+    const savedConnectionState = localStorage.getItem('github_connected');
+    
+    if (savedUsername && savedConnectionState === 'true') {
+      setConnectedUsername(savedUsername);
+      setHasConnected(true);
+    }
+  }, []);
 
   const { data: repos, isLoading: reposLoading } = useQuery({
     queryKey: ['/api/github/repos'],
     retry: false,
   });
 
+  // Set connection state based on existing repos
+  useEffect(() => {
+    if (repos && Array.isArray(repos) && repos.length > 0) {
+      setHasConnected(true);
+    }
+  }, [repos]);
+
   const connectMutation = useMutation({
-    mutationFn: async (token: string) => {
-      return apiRequest('POST', '/api/github/connect', { token });
+    mutationFn: async (input: { type: 'username' | 'token'; value: string }) => {
+      if (input.type === 'username') {
+        return apiRequest('POST', '/api/github/connect-username', { username: input.value });
+      } else {
+        return apiRequest('POST', '/api/github/connect', { token: input.value });
+      }
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
+      // Extract username from input
+      let username = githubInput;
+      if (githubInput.includes('github.com/')) {
+        const match = githubInput.match(/github\.com\/([^\/\?]+)/);
+        username = match ? match[1] : githubInput;
+      }
+      
+      // Save to localStorage
+      localStorage.setItem('github_username', username);
+      localStorage.setItem('github_connected', 'true');
+      
       queryClient.invalidateQueries({ queryKey: ['/api/github/repos'] });
-      setShowTokenInput(false);
-      setGithubToken('');
+      setShowInput(false);
+      setGithubInput('');
+      setHasConnected(true);
+      setConnectedUsername(username);
+      
       toast({
         title: "GitHub connected successfully",
-        description: "Your repositories have been fetched and stored.",
+        description: `Connected to ${username}'s repositories`,
       });
     },
     onError: (error) => {
       toast({
         title: "GitHub connection failed",
-        description: error instanceof Error ? error.message : "Please check your token and try again",
+        description: error instanceof Error ? error.message : "Please check your input and try again",
         variant: "destructive",
       });
     }
@@ -62,15 +101,15 @@ export function GitHubSection() {
   });
 
   const handleConnect = () => {
-    if (!githubToken.trim()) {
+    if (!githubInput.trim()) {
       toast({
-        title: "Token required",
-        description: "Please enter your GitHub personal access token",
+        title: `${inputType === 'username' ? 'Username' : 'Token'} required`,
+        description: `Please enter your GitHub ${inputType === 'username' ? 'username' : 'personal access token'}`,
         variant: "destructive",
       });
       return;
     }
-    connectMutation.mutate(githubToken);
+    connectMutation.mutate({ type: inputType, value: githubInput });
   };
 
   const getLanguageColor = (language: string) => {
@@ -86,7 +125,7 @@ export function GitHubSection() {
     return colors[language] || 'bg-gray-400';
   };
 
-  const isConnected = repos && repos.length >= 0;
+  const isConnected = hasConnected && repos && Array.isArray(repos);
 
   return (
     <div className="space-y-6">
@@ -113,13 +152,26 @@ export function GitHubSection() {
                     <Check className="mr-1" size={12} />
                     Connected
                   </Badge>
-                  <Button variant="ghost" size="icon">
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => {
+                      // Clear localStorage
+                      localStorage.removeItem('github_username');
+                      localStorage.removeItem('github_connected');
+                      
+                      setHasConnected(false);
+                      setConnectedUsername(null);
+                      setShowInput(true);
+                    }}
+                    title="Disconnect GitHub"
+                  >
                     <RefreshCw size={16} />
                   </Button>
                 </>
               ) : (
                 <Button 
-                  onClick={() => setShowTokenInput(!showTokenInput)}
+                  onClick={() => setShowInput(!showInput)}
                   className="bg-primary hover:bg-primary/90"
                 >
                   Connect GitHub
@@ -128,23 +180,44 @@ export function GitHubSection() {
             </div>
           </div>
 
-          {/* Token Input */}
-          {showTokenInput && (
+          {/* GitHub Input */}
+          {showInput && (
             <div className="mt-4 p-4 border border-gray-200 dark:border-border rounded-lg bg-gray-50 dark:bg-background">
               <div className="space-y-3">
+                {/* Input Type Toggle */}
+                <div className="flex space-x-2 mb-3">
+                  <Button
+                    variant={inputType === 'username' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setInputType('username')}
+                  >
+                    Username
+                  </Button>
+                  <Button
+                    variant={inputType === 'token' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setInputType('token')}
+                  >
+                    Token
+                  </Button>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    GitHub Personal Access Token
+                    {inputType === 'username' ? 'GitHub Username or URL' : 'GitHub Personal Access Token'}
                   </label>
                   <Input
-                    type="password"
-                    value={githubToken}
-                    onChange={(e) => setGithubToken(e.target.value)}
-                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                    type={inputType === 'token' ? 'password' : 'text'}
+                    value={githubInput}
+                    onChange={(e) => setGithubInput(e.target.value)}
+                    placeholder={inputType === 'username' ? 'Amarnathss or https://github.com/Amarnathss' : 'ghp_xxxxxxxxxxxxxxxxxxxx'}
                     className="w-full"
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Generate a token at GitHub → Settings → Developer settings → Personal access tokens
+                    {inputType === 'username' 
+                      ? 'Enter your GitHub username or paste your profile URL to fetch public repositories'
+                      : 'Generate a token at GitHub → Settings → Developer settings → Personal access tokens (for private repos)'
+                    }
                   </p>
                 </div>
                 <div className="flex space-x-2">
@@ -155,7 +228,7 @@ export function GitHubSection() {
                   >
                     {connectMutation.isPending ? 'Connecting...' : 'Connect'}
                   </Button>
-                  <Button variant="outline" onClick={() => setShowTokenInput(false)}>
+                  <Button variant="outline" onClick={() => setShowInput(false)}>
                     Cancel
                   </Button>
                 </div>
@@ -171,7 +244,7 @@ export function GitHubSection() {
           {/* Repository List */}
           <Card>
             <CardContent className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Private Repositories</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Public Repositories</h3>
               
               {reposLoading ? (
                 <div className="space-y-4">
@@ -181,34 +254,37 @@ export function GitHubSection() {
                     </div>
                   ))}
                 </div>
-              ) : repos?.length === 0 ? (
+              ) : Array.isArray(repos) && repos.length === 0 ? (
                 <div className="text-center py-8">
                   <Github className="mx-auto text-gray-400 mb-4" size={48} />
                   <p className="text-gray-500 dark:text-gray-400">No repositories found</p>
+                  <p className="text-xs text-gray-400 mt-2">Make sure your GitHub profile has public repositories</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {repos?.map((repo: any) => (
+                  {Array.isArray(repos) && repos.map((repo: any) => (
                     <div key={repo.id} className="border border-gray-200 dark:border-border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-background transition-colors">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h4 className="font-medium text-gray-900 dark:text-white flex items-center">
-                            <Lock className="text-gray-400 mr-2 text-sm" size={14} />
-                            {repo.repoName.split('/')[1]}
+                            <Github className="text-gray-400 mr-2 text-sm" size={14} />
+                            {repo.repoName}
                           </h4>
                           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                             {repo.description || 'No description available'}
                           </p>
                           <div className="flex items-center mt-2 space-x-4 text-xs text-gray-500 dark:text-gray-400">
-                            <span className="flex items-center">
-                              <div className={`w-2 h-2 ${getLanguageColor(repo.language)} rounded-full mr-1`}></div>
-                              {repo.language}
-                            </span>
+                            {repo.language && (
+                              <span className="flex items-center">
+                                <div className={`w-2 h-2 ${getLanguageColor(repo.language)} rounded-full mr-1`}></div>
+                                {repo.language}
+                              </span>
+                            )}
                             <span className="flex items-center">
                               <Star size={12} className="mr-1" />
-                              {repo.stars}
+                              {repo.stars || 0}
                             </span>
-                            <span>Updated recently</span>
+                            <span>Public</span>
                           </div>
                         </div>
                         <Button
@@ -234,14 +310,14 @@ export function GitHubSection() {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Analysis</h3>
               
               <div className="space-y-4">
-                {repos?.filter((repo: any) => repo.analysis).length === 0 ? (
+                {Array.isArray(repos) && repos.filter((repo: any) => repo.analysis).length === 0 ? (
                   <div className="text-center py-8">
                     <Code className="mx-auto text-gray-400 mb-4" size={48} />
                     <p className="text-gray-500 dark:text-gray-400">No analysis available</p>
                     <p className="text-sm text-gray-400 dark:text-gray-500">Click "Analyze" on a repository to get started</p>
                   </div>
                 ) : (
-                  repos?.filter((repo: any) => repo.analysis).map((repo: any) => (
+                  Array.isArray(repos) && repos.filter((repo: any) => repo.analysis).map((repo: any) => (
                     <div key={repo.id} className="bg-gray-50 dark:bg-background rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-medium text-gray-900 dark:text-white">{repo.repoName.split('/')[1]}</h4>

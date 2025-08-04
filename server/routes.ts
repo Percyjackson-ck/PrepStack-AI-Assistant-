@@ -181,6 +181,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/notes/:noteId", authenticateToken, async (req, res) => {
+    try {
+      const { noteId } = req.params;
+      const userId = getUserId(req, res);
+      if (!userId) return;
+
+      // Check if note belongs to user
+      const note = await storage.getNoteById(noteId);
+      if (!note || note.userId !== userId) {
+        return res.status(404).json({ message: "Note not found" });
+      }
+
+      await storage.deleteNote(noteId);
+      res.json({ message: "Note deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete note" });
+    }
+  });
+
   // GitHub routes
   app.post("/api/github/connect", authenticateToken, async (req, res) => {
     try {
@@ -198,6 +217,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "GitHub connected successfully", repos });
     } catch (error) {
       res.status(500).json({ message: "Failed to connect GitHub" });
+    }
+  });
+
+  app.post("/api/github/connect-username", authenticateToken, async (req, res) => {
+    try {
+      const { username } = req.body;
+      const userId = getUserId(req, res);
+      if (!userId) return;
+
+      // Extract username from GitHub URL if provided
+      let githubUsername = username;
+      if (username.includes('github.com/')) {
+        const match = username.match(/github\.com\/([^\/\?]+)/);
+        githubUsername = match ? match[1] : username;
+      }
+
+      // Fetch public repositories using GitHub API without authentication
+      const response = await fetch(`https://api.github.com/users/${githubUsername}/repos?per_page=100`);
+      
+      console.log(`Fetching repos for user: ${githubUsername}`);
+      console.log(`GitHub API response status: ${response.status}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          return res.status(404).json({ message: "GitHub user not found" });
+        }
+        throw new Error(`GitHub API error: ${response.status}`);
+      }
+
+      const githubRepos = await response.json();
+      console.log(`Found ${githubRepos.length} repositories for ${githubUsername}`);
+
+      // Store repositories in database
+      const repos = [];
+      for (const repo of githubRepos) {
+        const repoData = {
+          userId,
+          repoName: repo.name,
+          description: repo.description,
+          language: repo.language,
+          stars: repo.stargazers_count
+        };
+        
+        const createdRepo = await storage.createGithubRepo(repoData);
+        repos.push(createdRepo);
+      }
+
+      res.json({ message: "GitHub repositories fetched successfully", repos });
+    } catch (error) {
+      console.error('GitHub username connection error:', error);
+      res.status(500).json({ message: "Failed to fetch GitHub repositories" });
     }
   });
 
@@ -302,6 +372,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(sessions);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch chat sessions" });
+    }
+  });
+
+  app.delete("/api/chat/sessions", authenticateToken, async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      await storage.deleteChatSessionsByUser(userId);
+      res.json({ message: "All chat sessions deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete chat sessions" });
     }
   });
 

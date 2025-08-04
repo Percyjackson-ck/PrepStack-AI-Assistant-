@@ -4,9 +4,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { uploadFile } from '@/lib/api';
-import { CloudUpload, Search, FileText, File, MoreVertical } from 'lucide-react';
+import { uploadFile, apiRequest } from '@/lib/api';
+import { CloudUpload, Search, FileText, File, MoreVertical, Trash2 } from 'lucide-react';
 
 export function NotesSection() {
   const [selectedSubject, setSelectedSubject] = useState('All');
@@ -33,6 +34,26 @@ export function NotesSection() {
     onError: (error) => {
       toast({
         title: "Upload failed",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (noteId: string) => {
+      return apiRequest('DELETE', `/api/notes/${noteId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notes'] });
+      toast({
+        title: "Note deleted",
+        description: "Your note has been successfully deleted.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Delete failed",
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive",
       });
@@ -187,9 +208,22 @@ export function NotesSection() {
                           <p className="text-xs text-gray-500 dark:text-gray-400">{note.subject}</p>
                         </div>
                       </div>
-                      <Button variant="ghost" size="icon">
-                        <MoreVertical size={16} />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical size={16} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem 
+                            onClick={() => deleteMutation.mutate(note.id)}
+                            className="text-red-600 dark:text-red-400"
+                          >
+                            <Trash2 size={14} className="mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
                       {note.content.substring(0, 100)}...
