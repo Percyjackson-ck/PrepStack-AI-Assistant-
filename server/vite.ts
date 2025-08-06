@@ -79,8 +79,9 @@ export async function setupVite(app: Express, server: Server) {
 export function serveStatic(app: Express) {
   // Try multiple possible paths for the static files
   const possiblePaths = [
-    path.resolve(process.cwd(), "dist", "public"),   // If running from root (/workspace)
-    path.resolve(__dirname, "dist", "public"),       // If running from dist/ (/workspace/dist)
+    path.resolve(process.cwd(), "public"),           // If files are in workspace root (/workspace/public)
+    path.resolve(process.cwd(), "dist", "public"),   // If running from root (/workspace/dist/public)
+    path.resolve(__dirname, "dist", "public"),       // If running from dist/ (/workspace/dist/dist/public)
     path.resolve(__dirname, "public"),               // If files are in same dir as server
   ];
   

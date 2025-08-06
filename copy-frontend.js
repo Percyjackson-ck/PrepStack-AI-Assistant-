@@ -26,14 +26,21 @@ function copyDir(src, dest) {
   }
 }
 
-// Copy the public directory to dist/public (for when running from dist)
+// Copy the public directory to multiple locations for different deployment contexts
 const sourceDir = path.join(__dirname, 'dist', 'public');
-const destDir = path.join(__dirname, 'dist', 'dist', 'public');
+const destDir1 = path.join(__dirname, 'dist', 'dist', 'public'); // For local testing
+const destDir2 = path.join(__dirname, 'public'); // For DigitalOcean workspace root
 
 if (fs.existsSync(sourceDir)) {
-  console.log(`Copying ${sourceDir} to ${destDir}`);
-  copyDir(sourceDir, destDir);
-  console.log('Frontend files copied successfully!');
+  // Copy to dist/dist/public (for when running from dist locally)
+  console.log(`Copying ${sourceDir} to ${destDir1}`);
+  copyDir(sourceDir, destDir1);
+  
+  // Copy to root public (for DigitalOcean deployment)
+  console.log(`Copying ${sourceDir} to ${destDir2}`);
+  copyDir(sourceDir, destDir2);
+  
+  console.log('Frontend files copied successfully to both locations!');
 } else {
   console.log(`Source directory ${sourceDir} does not exist`);
 }
