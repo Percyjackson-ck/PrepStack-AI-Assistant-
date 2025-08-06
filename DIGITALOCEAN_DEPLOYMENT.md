@@ -1,16 +1,24 @@
 # DigitalOcean App Platform Deployment Guide
 
-This guide covers how to deploy the RAG Stack Generator to DigitalOcean App Platform - the easiest and most recommended way.
+This guide covers how to deploy the RAG Stack Generator to DigitalOcean App Platform - a full-stack application in a single deployment.
 
 ## 🚀 DigitalOcean App Platform Deployment
 
 ### Why App Platform?
 - ✅ **Easiest deployment** - No server management required
+- ✅ **Full-stack in one** - Backend and frontend served together
 - ✅ **Automatic HTTPS** - SSL certificates handled automatically  
 - ✅ **Auto-scaling** - Scales based on traffic
 - ✅ **GitHub integration** - Auto-deploy on push
 - ✅ **Built-in monitoring** - Logs and metrics included
 - ✅ **Managed infrastructure** - No server maintenance
+
+### Application Architecture
+Your RAG Stack Generator is a **unified full-stack application**:
+- **Backend**: Express.js API serving `/api/*` routes
+- **Frontend**: React app served as static files from the same server
+- **Single deployment**: One component handles everything
+- **Production mode**: Backend serves pre-built frontend files
 
 ### Prerequisites
 1. GitHub repository with your code
@@ -38,9 +46,9 @@ Make sure your code is pushed to GitHub with the `.do/app.yaml` configuration fi
 
 3. **Review App Configuration**
    - **App Name**: `ragstack-generator` (or your preferred name)
-   - **Service Name**: `api`
-   - **Build Command**: `npm run build`
-   - **Run Command**: `npm start` 
+   - **Service Name**: `api` 
+   - **Build Command**: `npm run build` (builds both frontend and backend)
+   - **Run Command**: `npm start` (serves both API and frontend)
    - **HTTP Port**: `5000`
 
 ### Step 3: Configure Environment Variables
@@ -60,6 +68,9 @@ Add these environment variables in the App Platform dashboard:
 2. **Click "Create Resources"** - DigitalOcean will build and deploy your app
 3. **Wait for Build** - First deployment takes 5-10 minutes
 4. **Get Your URL** - You'll receive a URL like `https://ragstack-generator-xxxxx.ondigitalocean.app`
+5. **Access Your App** - Both frontend and API are served from the same URL:
+   - **Frontend**: `https://your-app.ondigitalocean.app` (React app)
+   - **API**: `https://your-app.ondigitalocean.app/api/*` (Backend routes)
 
 ---
 
@@ -85,24 +96,6 @@ Add these environment variables in the App Platform dashboard:
 1. **Generate Random String**: Use any password generator
 2. **Minimum Length**: 32 characters recommended
 3. **Keep Secure**: Never commit to repository
-
----
-
-## 🌐 Frontend Deployment (Vercel)
-
-### Deploy Frontend Separately
-```bash
-# Build frontend
-npm run build:frontend
-
-# Deploy to Vercel
-cd client
-vercel --prod
-```
-
-### Configure Frontend Environment
-Set this environment variable in Vercel:
-- `VITE_API_URL`: `https://your-digitalocean-app.ondigitalocean.app`
 
 ---
 
@@ -211,8 +204,7 @@ Your app includes a health check endpoint at `/api/health` that App Platform use
 - [ ] JWT secret generated
 - [ ] App created on DigitalOcean App Platform
 - [ ] Environment variables configured
-- [ ] App successfully deployed and accessible
-- [ ] Frontend deployed to Vercel (optional)
-- [ ] Frontend configured with backend URL
+- [ ] Full-stack app successfully deployed and accessible
+- [ ] Both frontend and API working from same URL
 
-**🎉 Congratulations! Your RAG Stack Generator is now live on DigitalOcean App Platform!**
+**🎉 Congratulations! Your full-stack RAG Stack Generator is now live on DigitalOcean App Platform!**
