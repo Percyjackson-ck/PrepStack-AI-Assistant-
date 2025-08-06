@@ -5,8 +5,8 @@ services:
   github:
     repo: Amarnathss/RAGStackGen
     branch: main
-  run_command: npm start
-  build_command: npm run build && cd dist && npm install --production
+  run_command: cd dist && npm start
+  build_command: npm run build && chmod +x debug-structure.sh && ./debug-structure.sh && cd dist && npm install --production
   environment_slug: node-js
   instance_count: 1
   instance_size_slug: basic-xxs

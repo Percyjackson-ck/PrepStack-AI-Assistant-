@@ -77,19 +77,39 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  // Use __dirname from the polyfill instead of import.meta.dirname
-  const distPath = path.resolve(__dirname, "public");
+  // Debug: Log current working directory and __dirname
+  log(`Current working directory: ${process.cwd()}`);
+  log(`__dirname: ${__dirname}`);
+  
+  // Try multiple possible paths for the static files
+  const possiblePaths = [
+    path.resolve(__dirname, "public"),           // If running from dist/
+    path.resolve(process.cwd(), "dist", "public"), // If running from root
+    path.resolve(process.cwd(), "public"),       // If public is in current dir
+  ];
+  
+  let distPath: string | null = null;
+  
+  for (const testPath of possiblePaths) {
+    log(`Checking path: ${testPath} - exists: ${fs.existsSync(testPath)}`);
+    if (fs.existsSync(testPath)) {
+      distPath = testPath;
+      break;
+    }
+  }
 
-  if (!fs.existsSync(distPath)) {
+  if (!distPath) {
+    const pathsChecked = possiblePaths.join(", ");
     throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
+      `Could not find the build directory in any of these locations: ${pathsChecked}. Make sure to build the client first.`,
     );
   }
 
+  log(`Serving static files from: ${distPath}`);
   app.use(express.static(distPath));
 
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+    res.sendFile(path.resolve(distPath!, "index.html"));
   });
 }
