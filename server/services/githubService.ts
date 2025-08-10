@@ -22,20 +22,25 @@ export class GitHubService {
     }
   }
 
+  // Fetch all repos (public + private) for the authenticated user, with pagination
   async fetchUserRepositories(userId: string, token: string): Promise<GithubRepo[]> {
     try {
       this.octokit = new Octokit({ auth: token });
-      
-      const { data: repos } = await this.octokit.rest.repos.listForAuthenticatedUser({
-        visibility: 'private',
-        sort: 'updated',
-        per_page: 50
-      });
-
       const savedRepos: GithubRepo[] = [];
+      let page = 1;
+      const perPage = 100;
 
-      for (const repo of repos) {
-        if (repo.private) {
+      while (true) {
+        const { data: repos } = await this.octokit.rest.repos.listForAuthenticatedUser({
+          visibility: 'all', // fetch public + private
+          sort: 'updated',
+          per_page: perPage,
+          page
+        });
+
+        if (repos.length === 0) break;
+
+        for (const repo of repos) {
           const repoData: InsertGithubRepo = {
             userId,
             repoName: repo.full_name,
@@ -47,6 +52,7 @@ export class GitHubService {
           const savedRepo = await storage.createGithubRepo(repoData);
           savedRepos.push(savedRepo);
         }
+        page++;
       }
 
       return savedRepos;
@@ -63,13 +69,9 @@ export class GitHubService {
       }
 
       const [owner, repo] = repoName.split('/');
-      
-      // Get repository contents
-      const { data: contents } = await this.octokit.rest.repos.getContent({
-        owner,
-        repo,
-        path: ''
-      });
+
+      // Recursively fetch repository files
+      const contents = await this.fetchRepositoryFiles(owner, repo, '');
 
       // Get README content
       let readme = '';
@@ -83,44 +85,62 @@ export class GitHubService {
         // README might not exist
       }
 
-      // Analyze key files
+      // Extract key files (limit to first 5)
+      const importantFiles = contents.filter(
+        item =>
+          item.type === 'file' &&
+          ['package.json', 'requirements.txt', 'app.js', 'main.py', 'index.js', 'server.js'].some(name =>
+            item.path.toLowerCase().includes(name)
+          )
+      ).slice(0, 5);
+
       const keyFiles: Array<{ name: string; content: string; purpose: string }> = [];
-      
-      if (Array.isArray(contents)) {
-        const importantFiles = contents.filter((item: any) => 
-          item.type === 'file' && 
-          (item.name.includes('package.json') || 
-           item.name.includes('requirements.txt') ||
-           item.name.includes('app.js') ||
-           item.name.includes('main.py') ||
-           item.name.includes('index.js') ||
-           item.name.includes('server.js'))
-        ).slice(0, 3);
 
-        for (const file of importantFiles) {
-          try {
-            const { data: fileData } = await this.octokit.rest.repos.getContent({
-              owner,
-              repo,
-              path: file.name
+      for (const file of importantFiles) {
+        try {
+          const { data: fileData } = await this.octokit.rest.repos.getContent({
+            owner,
+            repo,
+            path: file.path
+          });
+
+          if ('content' in fileData) {
+            const content = Buffer.from(fileData.content, 'base64').toString('utf-8');
+            keyFiles.push({
+              name: file.path,
+              content: content.substring(0, 1000), // Limit content size
+              purpose: this.inferFilePurpose(file.path, content)
             });
-
-            if ('content' in fileData) {
-              const content = Buffer.from(fileData.content, 'base64').toString('utf-8');
-              keyFiles.push({
-                name: file.name,
-                content: content.substring(0, 1000), // Limit content
-                purpose: this.inferFilePurpose(file.name, content)
-              });
-            }
-          } catch {
-            // Skip if file can't be read
           }
+        } catch {
+          // Skip unreadable files
         }
       }
 
-      // Determine technologies
-      const technologies = this.extractTechnologies(keyFiles, readme);
+      // Extract technologies from key files, readme, and package.json dependencies
+      const technologiesFromFiles = this.extractTechnologies(keyFiles, readme);
+
+      // Try parse package.json dependencies
+      const packageJsonFile = contents.find(c => c.path.toLowerCase() === 'package.json');
+      if (packageJsonFile) {
+        try {
+          const { data: pkgData } = await this.octokit.rest.repos.getContent({
+            owner,
+            repo,
+            path: packageJsonFile.path
+          });
+          if ('content' in pkgData) {
+            const pkgJson = JSON.parse(Buffer.from(pkgData.content, 'base64').toString('utf-8'));
+            const deps = Object.keys(pkgJson.dependencies || {});
+            const devDeps = Object.keys(pkgJson.devDependencies || {});
+            deps.concat(devDeps).forEach(dep => technologiesFromFiles.add(dep.toLowerCase()));
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+
+      const technologies = Array.from(technologiesFromFiles);
 
       const analysis: RepoAnalysis = {
         summary: this.generateSummary(readme, keyFiles),
@@ -129,7 +149,6 @@ export class GitHubService {
         architecture: this.inferArchitecture(keyFiles, technologies)
       };
 
-      // Save analysis to database
       await storage.updateGithubRepoAnalysis(repoId, analysis);
 
       return analysis;
@@ -139,22 +158,51 @@ export class GitHubService {
     }
   }
 
-  private extractTechnologies(keyFiles: any[], readme: string): string[] {
+  private async fetchRepositoryFiles(owner: string, repo: string, dirPath: string): Promise<Array<{ path: string; type: string }>> {
+    const allFiles: Array<{ path: string; type: string }> = [];
+
+    try {
+      const { data } = await this.octokit!.rest.repos.getContent({
+        owner,
+        repo,
+        path: dirPath
+      });
+
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          if (item.type === 'dir') {
+            const nestedFiles = await this.fetchRepositoryFiles(owner, repo, item.path);
+            allFiles.push(...nestedFiles);
+          } else {
+            allFiles.push({ path: item.path, type: item.type });
+          }
+        }
+      } else {
+        allFiles.push({ path: data.path, type: data.type });
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch contents for ${dirPath}:`, error);
+    }
+
+    return allFiles;
+  }
+
+  private extractTechnologies(keyFiles: { name: string; content: string }[], readme: string): Set<string> {
     const techs = new Set<string>();
     const content = (keyFiles.map(f => f.content).join(' ') + ' ' + readme).toLowerCase();
 
-    const techMap = {
-      'react': ['react', 'jsx', 'create-react-app'],
+    const techMap: Record<string, string[]> = {
+      react: ['react', 'jsx', 'create-react-app'],
       'node.js': ['node', 'express', 'npm'],
-      'python': ['python', 'django', 'flask', 'pip'],
-      'mongodb': ['mongodb', 'mongoose'],
-      'postgresql': ['postgresql', 'postgres', 'pg'],
-      'javascript': ['javascript', 'js'],
-      'typescript': ['typescript', 'ts'],
-      'html': ['html'],
-      'css': ['css', 'styling'],
-      'tailwind': ['tailwind'],
-      'bootstrap': ['bootstrap']
+      python: ['python', 'django', 'flask', 'pip'],
+      mongodb: ['mongodb', 'mongoose'],
+      postgresql: ['postgresql', 'postgres', 'pg'],
+      javascript: ['javascript', 'js'],
+      typescript: ['typescript', 'ts'],
+      html: ['html'],
+      css: ['css', 'styling'],
+      tailwind: ['tailwind'],
+      bootstrap: ['bootstrap']
     };
 
     Object.entries(techMap).forEach(([tech, keywords]) => {
@@ -163,18 +211,18 @@ export class GitHubService {
       }
     });
 
-    return Array.from(techs);
+    return techs;
   }
 
   private inferFilePurpose(fileName: string, content: string): string {
-    if (fileName === 'package.json') return 'Project dependencies and configuration';
-    if (fileName === 'requirements.txt') return 'Python dependencies';
-    if (fileName.includes('app.') || fileName.includes('server.')) return 'Main application entry point';
-    if (fileName.includes('index.')) return 'Application entry point';
+    if (fileName.toLowerCase().endsWith('package.json')) return 'Project dependencies and configuration';
+    if (fileName.toLowerCase().endsWith('requirements.txt')) return 'Python dependencies';
+    if (fileName.toLowerCase().includes('app.') || fileName.toLowerCase().includes('server.')) return 'Main application entry point';
+    if (fileName.toLowerCase().includes('index.')) return 'Application entry point';
     return 'Configuration or main application file';
   }
 
-  private generateSummary(readme: string, keyFiles: any[]): string {
+  private generateSummary(readme: string, keyFiles: { name: string; content: string }[]): string {
     if (readme) {
       const lines = readme.split('\n').filter(line => line.trim().length > 0);
       const description = lines.find(line => !line.startsWith('#') && line.length > 20);
@@ -184,9 +232,11 @@ export class GitHubService {
     return `Project with ${keyFiles.length} key files including ${keyFiles.map(f => f.name).join(', ')}`;
   }
 
-  private inferArchitecture(keyFiles: any[], technologies: string[]): string {
-    const hasBackend = keyFiles.some(f => 
-      f.name.includes('server') || f.name.includes('app.js') || f.name.includes('main.py')
+  private inferArchitecture(keyFiles: { name: string; content: string }[], technologies: string[]): string {
+    const hasBackend = keyFiles.some(f =>
+      f.name.toLowerCase().includes('server') ||
+      f.name.toLowerCase().includes('app.js') ||
+      f.name.toLowerCase().includes('main.py')
     );
     const hasFrontend = technologies.includes('react') || technologies.includes('html');
 
