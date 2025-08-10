@@ -33,15 +33,18 @@ const corsOptions = {
         "https://*.vercel.app",
         "https://ragstackgen.onrender.com"
       ] 
-    : ["http://localhost:5173", "http://localhost:3000"],
+    : 
+    ["http://localhost:5173",
+       "http://localhost:3000"],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
-app.use(cors(corsOptions));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+app.use(cors(corsOptions));
 
 app.use((req, res, next) => {
   const start = Date.now();
