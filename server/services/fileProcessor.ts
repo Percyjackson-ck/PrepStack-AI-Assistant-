@@ -1,4 +1,4 @@
-import * as fs from 'fs';
+import * as fs from 'fs/promises';
 import * as path from 'path';
 
 export interface ProcessedFile {
@@ -27,46 +27,21 @@ export class FileProcessor {
   }
 
   private static async processPDF(filePath: string, title: string): Promise<ProcessedFile> {
-    try {
-      // For now, we'll provide a placeholder for PDF processing
-      // In a production environment, you would use a PDF processing library
-      const content = `PDF file: ${title}\n\nThis is a placeholder for PDF content extraction. To enable full PDF processing, install and configure a PDF parsing library like pdf-parse or pdfjs-dist.`;
-      
-      return {
-        content,
-        title,
-        fileType: 'pdf'
-      };
-    } catch (error) {
-      throw new Error(`Failed to process PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    // TODO: Implement real PDF parsing using pdf-parse or similar lib
+    const content = `PDF file: ${title}\n\n[PDF parsing not implemented yet]`;
+    return { content, title, fileType: 'pdf' };
   }
 
   private static async processDocx(filePath: string, title: string): Promise<ProcessedFile> {
-    try {
-      // For now, we'll provide a placeholder for DOCX processing
-      // In a production environment, you would use mammoth or similar library
-      const content = `DOCX file: ${title}\n\nThis is a placeholder for DOCX content extraction. To enable full DOCX processing, install and configure the mammoth library.`;
-      
-      return {
-        content,
-        title,
-        fileType: 'docx'
-      };
-    } catch (error) {
-      throw new Error(`Failed to process DOCX: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    // TODO: Implement real DOCX parsing using mammoth or similar lib
+    const content = `DOCX file: ${title}\n\n[DOCX parsing not implemented yet]`;
+    return { content, title, fileType: 'docx' };
   }
 
   private static async processMarkdown(filePath: string, title: string): Promise<ProcessedFile> {
     try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      
-      return {
-        content: content.trim(),
-        title,
-        fileType: 'markdown'
-      };
+      const content = await fs.readFile(filePath, 'utf-8');
+      return { content: content.trim(), title, fileType: 'markdown' };
     } catch (error) {
       throw new Error(`Failed to process Markdown: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -74,63 +49,51 @@ export class FileProcessor {
 
   private static async processText(filePath: string, title: string): Promise<ProcessedFile> {
     try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      
-      return {
-        content: content.trim(),
-        title,
-        fileType: 'text'
-      };
+      const content = await fs.readFile(filePath, 'utf-8');
+      return { content: content.trim(), title, fileType: 'text' };
     } catch (error) {
       throw new Error(`Failed to process text file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  static async createEmbedding(text: string): Promise<string> {
-    // Simple text-based similarity for now
-    // In production, you'd use a proper embedding service like OpenAI embeddings
-    const words = text.toLowerCase().split(/\s+/);
-    const wordFreq: { [key: string]: number } = {};
-    
+  static async createEmbedding(text: string): Promise<Record<string, number>> {
+    const words = text
+      .toLowerCase()
+      .match(/\b[a-z]{3,}\b/g) || [];
+
+    // Count frequencies (TF)
+    const freq: Record<string, number> = {};
     words.forEach(word => {
-      word = word.replace(/[^\w]/g, '');
-      if (word.length > 2) {
-        wordFreq[word] = (wordFreq[word] || 0) + 1;
-      }
+      freq[word] = (freq[word] || 0) + 1;
     });
 
-    // Create a simple vector representation
-    const vector = Object.entries(wordFreq)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 100)
-      .map(([word, freq]) => freq);
+    // Normalize by total words for simple TF
+    const totalWords = words.length;
+    for (const word in freq) {
+      freq[word] = freq[word] / totalWords;
+    }
 
-    return JSON.stringify(vector);
+    return freq;
   }
 
-  static calculateSimilarity(embedding1: string, embedding2: string): number {
-    try {
-      const vec1: number[] = JSON.parse(embedding1);
-      const vec2: number[] = JSON.parse(embedding2);
-      
-      const maxLength = Math.max(vec1.length, vec2.length);
-      let dotProduct = 0;
-      let norm1 = 0;
-      let norm2 = 0;
+  static calculateSimilarity(embedding1: Record<string, number>, embedding2: Record<string, number>): number {
+    // Cosine similarity for sparse vectors represented as frequency maps
+    let dotProduct = 0;
+    let norm1 = 0;
+    let norm2 = 0;
 
-      for (let i = 0; i < maxLength; i++) {
-        const v1 = vec1[i] || 0;
-        const v2 = vec2[i] || 0;
-        
-        dotProduct += v1 * v2;
-        norm1 += v1 * v1;
-        norm2 += v2 * v2;
-      }
-
-      const magnitude = Math.sqrt(norm1) * Math.sqrt(norm2);
-      return magnitude === 0 ? 0 : dotProduct / magnitude;
-    } catch {
-      return 0;
+    for (const word in embedding1) {
+      const val1 = embedding1[word] || 0;
+      const val2 = embedding2[word] || 0;
+      dotProduct += val1 * val2;
+      norm1 += val1 * val1;
     }
+
+    for (const val of Object.values(embedding2)) {
+      norm2 += val * val;
+    }
+
+    const magnitude = Math.sqrt(norm1) * Math.sqrt(norm2);
+    return magnitude === 0 ? 0 : dotProduct / magnitude;
   }
 }
