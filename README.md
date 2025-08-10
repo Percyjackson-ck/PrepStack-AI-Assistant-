@@ -189,6 +189,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Built with ❤️ by [Amarnathss](https://github.com/Amarnathss)**
+**Built with ❤️ by [Amarnathss](https://github.com/Amarnathss) and [Girish C K](https://github.com/Percyjackson-ck)**
 
 *Empowering students with AI-driven learning tools*
